@@ -1,4 +1,4 @@
-name: Testing Ring 0
+name: Testing
 
 on: [push]
 
