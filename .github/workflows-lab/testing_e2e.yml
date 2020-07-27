@@ -1,0 +1,44 @@
+name: Testing Ring 0
+
+on: [push]
+
+jobs:
+  Create:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1.1.0
+    
+    - name: Create Cache Folder
+      run: |
+        mkdir ~/cache-folder
+    - uses: actions/cache@v1
+      id: cache
+      with:
+        path: ~/cache-folder
+        key: ${{ runner.os }}-${{ github.sha }}-key
+
+    - name: Creating File
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        dd if=/dev/urandom of=file.txt count=100 bs=1048576
+        mv file.txt ~/cache-folder
+  Restore:
+    needs: Create
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1.1.0
+    
+    - name: Create Cache Folder
+      run: |
+        mkdir ~/cache-folder
+    - uses: actions/cache@v1
+      id: cache
+      with:
+        path: ~/cache-folder
+        key: ${{ runner.os }}-${{ github.sha }}-key
+
+    - name: Check Cache Hit
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        echo "::error ::Failed to Restore Cache"
+        exit 1
