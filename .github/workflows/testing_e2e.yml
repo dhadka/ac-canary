@@ -4,25 +4,37 @@ on: [push]
 
 jobs:
   Create:
+    strategy:
+      matrix:
+        cache-version: [v1, v2]
+
     runs-on: ubuntu-latest
+    
     steps:
     - uses: actions/checkout@v1.1.0
     
     - name: Create Cache Folder
       run: |
-        mkdir ~/cache-folder
-    - uses: actions/cache@v1
+        mkdir cache-folder
+        
+    - uses: actions/cache@${{ matrix.cache-version }}
       id: cache
       with:
-        path: ~/cache-folder
+        path: cache-folder
         key: ${{ runner.os }}-${{ github.sha }}-key
 
-    - name: Creating File
+    - name: Creating Content
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
+        cd cache-folder
         dd if=/dev/urandom of=file.txt count=100 bs=1048576
-        mv file.txt ~/cache-folder
+        cat file.txt | openssl dgst -sha256 > sha256.txt
+        
   Restore:
+    strategy:
+      matrix:
+        cache-version: [v1, v2]
+
     needs: Create
     runs-on: ubuntu-latest
     steps:
@@ -30,11 +42,12 @@ jobs:
     
     - name: Create Cache Folder
       run: |
-        mkdir ~/cache-folder
-    - uses: actions/cache@v1
+        mkdir cache-folder
+        
+    - uses: actions/cache@${{ matrix.cache-version }}
       id: cache
       with:
-        path: ~/cache-folder
+        path: cache-folder
         key: ${{ runner.os }}-${{ github.sha }}-key
 
     - name: Check Cache Hit
@@ -42,3 +55,18 @@ jobs:
       run: |
         echo "::error ::Failed to Restore Cache"
         exit 1
+        
+    - name: Validate Cache Content
+      if: steps.cache.outputs.cache-hit == 'true'
+      run: |
+        cd cache-folder
+        
+        if [ ! -f file.txt ] || [ ! -f sha256.txt ]; then
+          echo "::error ::Files missing after cache hit"
+          exit 1
+        fi
+        
+        if [ "$(cat sha256.txt)" != "$(cat file.txt | openssl dgst -sha256)" ]; then
+          echo "::error ::File hash of restored file differs from expected value"
+          exit 1
+        fi
